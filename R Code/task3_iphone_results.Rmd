@@ -1,0 +1,20 @@
+---
+title: "Applying Model"
+output: html_notebook
+---
+
+```{r}
+iphoneLargeMatrix <- read.csv("iphoneLargeMatrix.csv")
+```
+
+```{r}
+#use c5.0 model with dependent variable recoding
+#c5_iphone_smallMatrix_RC
+
+prediction_iphoneLargeMatrix <-  predict(c5_iphone_smallMatrix_RC,iphoneLargeMatrix)
+```
+
+```{r}
+summary(prediction_iphoneLargeMatrix)
+```
+

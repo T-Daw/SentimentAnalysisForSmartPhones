@@ -1,0 +1,443 @@
+---
+title: "justIphone_variables"
+output: html_notebook
+---
+
+
+```{r}
+# keep only variables for iphones
+toFilter <- grepl('iphone', colnames(iphone_smallMatrix))
+ iphones <- iphone_smallMatrix[toFilter]
+colnames(iphones)
+```
+
+# Correlation
+```{r}
+corr_matrix <- cor(iphones)
+corr_plot <- corrplot(as.matrix(corr_matrix))
+corr_plot
+```
+
+```{r}
+# run this for any features that are h
+any_over_80 <- function(my_matrix) any(my_matrix > .8 & my_matrix < 1, na.rm = TRUE)
+any_under_80 <- function(my_matrix) any(my_matrix < -.8 & my_matrix > -1, na.rm = TRUE)
+```
+
+```{r}
+# remove features with collinearity, correlation greater than .8, FOR small corr_matrix
+corr_matrix %>% 
+  focus_if(any_over_80, mirror = TRUE) 
+```
+
+
+
+Let's drop these variables: iphonedispos, iphonedisneg, iphonedisunc
+
+Remove columns 5,6,7
+
+Not all models are affected by collinearity
+```{r}
+# keep columns only for iphone and samsunggalaxy
+iphones_corr <- iphones[,-(5:7)]
+```
+
+
+# NZR
+
+```{r}
+#nearZeroVar() with saveMetrics = TRUE returns an object containing a table including: frequency ratio, percentage unique, zero variance and near zero variance 
+
+nzvMetrics <- nearZeroVar(iphones, saveMetrics = TRUE)
+nzvMetrics
+```
+
+
+```{r}
+# returns column 2, iphonecamunc, same as nvzMetrics
+# nearZeroVar() with saveMetrics = FALSE returns an vector 
+nzv <- nearZeroVar(iphones, saveMetrics = FALSE) 
+nzv
+```
+
+
+```{r}
+# create a new data set and remove near zero variance features
+iphones_nvz <- iphones[,-nzv]
+str(iphones_nvz)
+```
+
+
+visualize variable with nzv
+
+```{r}
+plot_ly(iphone_smallMatrix, x= ~iphone_smallMatrix$iphone, type='histogram')
+plot_ly(iphone_smallMatrix, x= ~iphone_smallMatrix$iphonecampos, type='histogram')
+plot_ly(iphone_smallMatrix, x= ~iphone_smallMatrix$iphonecamneg, type='histogram')
+plot_ly(iphone_smallMatrix, x= ~iphone_smallMatrix$iphonecamunc, type='histogram')
+plot_ly(iphone_smallMatrix, x= ~iphone_smallMatrix$iphonecamneg, type='histogram')
+plot_ly(iphone_smallMatrix, x= ~iphone_smallMatrix$iphonedispos, type='histogram')
+plot_ly(iphone_smallMatrix, x= ~iphone_smallMatrix$iphonedisneg, type='histogram')
+plot_ly(iphone_smallMatrix, x= ~iphone_smallMatrix$iphonedisunc, type='histogram')
+plot_ly(iphone_smallMatrix, x= ~iphone_smallMatrix$iphoneperpos, type='histogram')
+plot_ly(iphone_smallMatrix, x= ~iphone_smallMatrix$iphoneperneg, type='histogram')
+plot_ly(iphone_smallMatrix, x= ~iphone_smallMatrix$iphoneperunc, type='histogram')
+plot_ly(iphone_smallMatrix, x= ~iphone_smallMatrix$iphonesentiment, type='histogram')
+```
+
+#rfe
+
+```{r}
+# Let's sample the data before using RFE
+iphoneSample <- iphones[sample(1:nrow(iphones), 1000, replace=FALSE),]
+
+# Set up rfeControl with randomforest, repeated cross validation and no updates
+ctrl <- rfeControl(functions = rfFuncs, 
+                   method = "repeatedcv",
+                   repeats = 5,
+                   verbose = FALSE)
+
+# Use rfe and omit the response variable (attribute 11 iphonesentiment) 
+rfeResultsSMALL <- rfe(iphoneSample[,1:10], 
+                  iphoneSample$iphonesentiment, 
+                  sizes=(1:10), 
+                  rfeControl=ctrl)
+
+# Get results
+rfeResultsSMALL
+
+# Plot results
+plot(rfeResultsSMALL, type=c("g", "o"))
+```
+
+
+```{r}
+# create new data set with rfe recommended features
+iphones_RFE <- iphones[,predictors(rfeResultsSMALL)]
+
+# add the dependent variable to iphoneRFE
+iphones_RFE$iphonesentiment <- iphones$iphonesentiment
+
+# review outcome
+str(iphones_RFE)
+```
+
+
+# Model for Regular Data: Iphones
+
+```{r}
+# convert variable types, categorical
+iphones$iphonesentiment <- as.factor(iphones$iphonesentiment)
+```
+
+Train and Test Set: 
+```{r}
+# Create Train and Test Set for iphoneDFBig
+# create 75% sample of row indices
+in_training <-createDataPartition(iphones$iphonesentiment, p = .7, list = FALSE)
+# create 75% sample of data and save it to trainData
+trainData_iphones <- iphones[in_training, ]
+ # create 25% sample of data and save it to test_data
+testData_iphones <- iphones[-in_training, ]
+# verify split percentages
+nrow(trainData_iphones) / nrow(iphones)
+```
+
+```{r}
+#c5
+c5_iphones <- train(iphonesentiment ~., data = trainData_iphones, method = "C5.0",
+                trControl = fitControl)
+```
+
+
+```{r}
+# randomforest
+rf_iphones <- train(iphonesentiment ~., data = trainData_iphones, method = "rf",
+                trControl = fitControl)
+```
+
+```{r}
+# svm   (kernlab)
+svm_iphones <- train(iphonesentiment ~., data = trainData_iphones, method = "svmLinear",
+                trControl = fitControl)
+```
+
+
+```{r}
+# kknn
+kknn_iphones <- train(iphonesentiment ~., data = trainData_iphones, method = "kknn",
+                trControl = fitControl)
+```
+
+```{r}
+# gbm
+#gbm_iphones <- train(iphonesentiment ~., data = trainData_iphones, method = "gbm",
+#                trControl = fitControl)
+```
+
+Compare Accuracy on Prediction Results:
+
+```{r}
+#c5
+prediction_c5_iphones <- predict(c5_iphones, testData_iphones)
+postResample(prediction_c5_iphones, testData_iphones$iphonesentiment)
+#randomforest
+prediction_rf_iphones  <- predict(rf_iphones, testData_iphones)
+postResample(prediction_rf_iphones, testData_iphones$iphonesentiment)
+#svm
+prediction_svm_iphones  <- predict(svm_iphones, testData_iphones)
+postResample(prediction_svm_iphones, testData_iphones$iphonesentiment)
+# kknn
+prediction_kknn_iphones  <- predict(kknn_iphones, testData_iphones)
+postResample(prediction_kknn_iphones, testData_iphones$iphonesentiment)
+
+```
+
+```{r}
+modelData_iphones <- resamples(list(C50 = c5_iphones, randomForest = rf_iphones, svMLinear = svm_iphones,kknn = kknn_iphones))
+```
+
+```{r}
+summary(modelData_iphones)
+```
+
+# Model for Correlated Data: 
+
+```{r}
+# convert variable types, categorical
+iphones_corr$iphonesentiment <- as.factor(iphones_corr$iphonesentiment)
+```
+
+Train and Test Set: 
+```{r}
+# Create Train and Test Set for iphoneDFBig
+# create 75% sample of row indices
+in_training <-createDataPartition(iphones_corr$iphonesentiment, p = .7, list = FALSE)
+# create 75% sample of data and save it to trainData
+trainData_iphones_corr <- iphones_corr[in_training, ]
+ # create 25% sample of data and save it to test_data
+testData_iphones_corr <- iphones_corr[-in_training, ]
+# verify split percentages
+nrow(trainData_iphones_corr) / nrow(iphones_corr)
+```
+
+```{r}
+#c5
+c5_iphones_corr <- train(iphonesentiment ~., data = trainData_iphones_corr, method = "C5.0",
+                trControl = fitControl)
+```
+
+
+```{r}
+# randomforest
+rf_iphones_corr <- train(iphonesentiment ~., data = trainData_iphones_corr, method = "rf",
+                trControl = fitControl)
+```
+
+No:
+```{r}
+# svm   (kernlab)
+svm_iphones_corr <- train(iphonesentiment ~., data = trainData_iphones_corr, method = "svmLinear",
+                trControl = fitControl)
+# kknn
+kknn_iphones_corr <- train(iphonesentiment ~., data = trainData_iphones_corr, method = "kknn",
+                trControl = fitControl)
+
+# gbm
+#gbm_iphones_corr <- train(iphonesentiment ~., data = trainData_iphones_corr, method = "gbm",
+#                trControl = fitControl)
+```
+
+Compare Accuracy on Prediction Results:
+
+```{r}
+#c5
+prediction_c5_iphones_corr <- predict(c5_iphones_corr, testData_iphones_corr)
+postResample(prediction_c5_iphones_corr, testData_iphones_corr$iphonesentiment)
+#randomforest
+prediction_rf_iphones_corr  <- predict(rf_iphones_corr, testData_iphones_corr)
+postResample(prediction_rf_iphones_corr, testData_iphones_corr$iphonesentiment)
+```
+
+No:
+```{r}
+#svm
+prediction_svm_iphones_corr  <- predict(svm_iphones_corr, testData_iphones_corr)
+postResample(prediction_svm_iphones_corr, testData_iphones_corr$iphonesentiment)
+# kknn
+prediction_kknn_iphones_corr  <- predict(kknn_iphones_corr, testData_iphones_corr)
+postResample(prediction_kknn_iphones_corr, testData_iphones_corr$iphonesentiment)
+
+```
+
+```{r}
+modelData_iphones_corr <- resamples(list(C50 = c5_iphones_corr, randomForest = rf_iphones_corr))
+  
+# svMLinear = svm_iphones_corr,kknn = kknn_iphones_corr))
+```
+
+```{r}
+summary(modelData_iphones_corr)
+```
+# Model for NZR Data:
+
+
+```{r}
+# convert variable types, categorical
+iphones_nvz$iphonesentiment <- as.factor(iphones_nvz$iphonesentiment)
+```
+
+Train and Test Set: 
+```{r}
+# Create Train and Test Set for iphoneDFBig
+# create 75% sample of row indices
+in_training <-createDataPartition(iphones_nvz$iphonesentiment, p = .7, list = FALSE)
+# create 75% sample of data and save it to trainData
+trainData_iphones_nvz <- iphones_nvz[in_training, ]
+ # create 25% sample of data and save it to test_data
+testData_iphones_nvz <- iphones_nvz[-in_training, ]
+# verify split percentages
+nrow(trainData_iphones_nvz) / nrow(iphones_nvz)
+```
+
+```{r}
+#c5
+c5_iphones_nvz <- train(iphonesentiment ~., data = trainData_iphones_nvz, method = "C5.0",
+                trControl = fitControl)
+```
+
+
+```{r}
+# randomforest
+rf_iphones_nvz <- train(iphonesentiment ~., data = trainData_iphones_nvz, method = "rf",
+                trControl = fitControl)
+```
+
+No:
+```{r}
+# svm   (kernlab)
+svm_iphones_nvz <- train(iphonesentiment ~., data = trainData_iphones_nvz, method = "svmLinear",
+                trControl = fitControl)
+# kknn
+kknn_iphones_nvz <- train(iphonesentiment ~., data = trainData_iphones_nvz, method = "kknn",
+                trControl = fitControl)
+
+# gbm
+#gbm_iphones_nvz <- train(iphonesentiment ~., data = trainData_iphones_nvz, method = "gbm",
+#                trControl = fitControl)
+```
+
+Compare Accuracy on Prediction Results:
+
+```{r}
+#c5
+prediction_c5_iphones_nvz <- predict(c5_iphones_nvz, testData_iphones_nvz)
+postResample(prediction_c5_iphones_nvz, testData_iphones_nvz$iphonesentiment)
+#randomforest
+prediction_rf_iphones_nvz  <- predict(rf_iphones_nvz, testData_iphones_nvz)
+postResample(prediction_rf_iphones_nvz, testData_iphones_nvz$iphonesentiment)
+```
+
+No:
+```{r}
+#svm
+prediction_svm_iphones_nvz  <- predict(svm_iphones_nvz, testData_iphones_nvz)
+postResample(prediction_svm_iphones_nvz, testData_iphones_nvz$iphonesentiment)
+# kknn
+prediction_kknn_iphones_nvz  <- predict(kknn_iphones_nvz, testData_iphones_nvz)
+postResample(prediction_kknn_iphones_nvz, testData_iphones_nvz$iphonesentiment)
+
+```
+
+```{r}
+modelData_iphones_nvz <- resamples(list(C50 = c5_iphones_nvz, randomForest = rf_iphones_nvz))
+  
+# svMLinear = svm_iphones_nvz,kknn = kknn_iphones_nvz))
+```
+
+```{r}
+summary(modelData_iphones_nvz)
+```
+
+
+# Models for RFE Data:
+
+
+
+```{r}
+# convert variable types, categorical
+iphones_RFE$iphonesentiment <- as.factor(iphones_RFE$iphonesentiment)
+```
+
+Train and Test Set: 
+```{r}
+# Create Train and Test Set for iphoneDFBig
+# create 75% sample of row indices
+in_training <-createDataPartition(iphones_RFE$iphonesentiment, p = .7, list = FALSE)
+# create 75% sample of data and save it to trainData
+trainData_iphones_RFE <- iphones_RFE[in_training, ]
+ # create 25% sample of data and save it to test_data
+testData_iphones_RFE <- iphones_RFE[-in_training, ]
+# verify split percentages
+nrow(trainData_iphones_RFE) / nrow(iphones_RFE)
+```
+
+```{r}
+#c5
+c5_iphones_RFE <- train(iphonesentiment ~., data = trainData_iphones_RFE, method = "C5.0",
+                trControl = fitControl)
+```
+
+
+```{r}
+# randomforest
+rf_iphones_RFE <- train(iphonesentiment ~., data = trainData_iphones_RFE, method = "rf",
+                trControl = fitControl)
+```
+
+No:
+```{r}
+# svm   (kernlab)
+svm_iphones_RFE <- train(iphonesentiment ~., data = trainData_iphones_RFE, method = "svmLinear",
+                trControl = fitControl)
+# kknn
+kknn_iphones_RFE <- train(iphonesentiment ~., data = trainData_iphones_RFE, method = "kknn",
+                trControl = fitControl)
+
+# gbm
+#gbm_iphones_RFE <- train(iphonesentiment ~., data = trainData_iphones_RFE, method = "gbm",
+#                trControl = fitControl)
+```
+
+Compare Accuracy on Prediction Results:
+
+```{r}
+#c5
+prediction_c5_iphones_RFE <- predict(c5_iphones_RFE, testData_iphones_RFE)
+postResample(prediction_c5_iphones_RFE, testData_iphones_RFE$iphonesentiment)
+#randomforest
+prediction_rf_iphones_RFE  <- predict(rf_iphones_RFE, testData_iphones_RFE)
+postResample(prediction_rf_iphones_RFE, testData_iphones_RFE$iphonesentiment)
+```
+
+No:
+```{r}
+#svm
+prediction_svm_iphones_RFE  <- predict(svm_iphones_RFE, testData_iphones_RFE)
+postResample(prediction_svm_iphones_RFE, testData_iphones_RFE$iphonesentiment)
+# kknn
+prediction_kknn_iphones_RFE  <- predict(kknn_iphones_RFE, testData_iphones_RFE)
+postResample(prediction_kknn_iphones_RFE, testData_iphones_RFE$iphonesentiment)
+
+```
+
+```{r}
+modelData_iphones_RFE <- resamples(list(C50 = c5_iphones_RFE, randomForest = rf_iphones_RFE))
+  
+# svMLinear = svm_iphones_RFE,kknn = kknn_iphones_RFE))
+```
+
+```{r}
+summary(modelData_iphones_RFE)
+```
+

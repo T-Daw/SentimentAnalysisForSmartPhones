@@ -1,0 +1,118 @@
+---
+title: "task3_correlation"
+output: html_notebook
+---
+
+```{r}
+# correlation matrix
+corr_matrixBIG <- cor(iphone_smallMatrix)
+corr_plotBIG <- corrplot(as.matrix(corr_matrixBIG))
+corr_plotBIG 
+```
+
+```{r}
+# returns correlation  greater than .9
+corr_df_big <- correlate(iphone_smallMatrix, diagonal = NA) %>% stretch()
+# Examine variables with correlation above .9
+corr_df_big_filtered <- corr_df_big %>% filter(r > .9)
+```
+
+```{r}
+#columns to remove
+
+corr_to_remove <- c("googleperneg","googleperpos","htcdispos","htcphone","ios","iosperneg","iosperpos","iosperunc","iphone","nokiacamneg","nokiacampos","nokiacamunc","nokiadisneg","nokiadispos","nokiadisunc","nokiaperneg","nokiaperpos","nokiaperunc","samsungdisneg","samsungdispos","samsungdisunc","samsungperneg","samsungperunc")
+
+# We may consider trying this, with keeping the iphone variable
+```
+
+```{r}
+iphoneDFBigCOR <- iphone_smallMatrix[ , -which(names(iphone_smallMatrix) %in% corr_to_remove)]
+```
+
+# Model Building
+
+```{r}
+
+# create 10-fold cross validation fitcontrol
+fitControl <- trainControl(method = "cv", number = 10)
+```
+ 
+
+# Model of dataframe without highly correlated variables
+
+
+```{r}
+# convert variable types, categorical
+iphoneDFBigCOR$iphonesentiment <- as.factor(iphoneDFBigCOR$iphonesentiment)
+```
+
+Train and Test Set: 
+```{r}
+# Create Train and Test Set for iphoneDFBig
+# create 75% sample of row indices
+in_training <-createDataPartition(iphoneDFBigCOR$iphonesentiment, p = .7, list = FALSE)
+# create 75% sample of data and save it to trainData
+trainData_iphoneDFBigCOR <- iphoneDFBigCOR[in_training, ]
+ # create 25% sample of data and save it to test_data
+testData_iphoneDFBigCOR <- iphoneDFBigCOR[-in_training, ]
+# verify split percentages
+nrow(trainData_iphoneDFBigCOR) / nrow(iphoneDFBigCOR)
+```
+
+```{r}
+#c5
+c5_iphoneDFBigCOR <- train(iphonesentiment ~., data = trainData_iphoneDFBigCOR, method = "C5.0",
+                trControl = fitControl)
+```
+
+
+```{r}
+# randomforest
+rf_iphoneDFBigCOR <- train(iphonesentiment ~., data = trainData_iphoneDFBigCOR, method = "rf",
+                trControl = fitControl)
+```
+
+```{r}
+# svm   (kernlab)
+svm_iphoneDFBigCOR <- train(iphonesentiment ~., data = trainData_iphoneDFBigCOR, method = "svmLinear",
+                trControl = fitControl)
+```
+
+
+```{r}
+# kknn
+kknn_iphoneDFBigCOR <- train(iphonesentiment ~., data = trainData_iphoneDFBigCOR, method = "kknn",
+                trControl = fitControl)
+```
+
+```{r}
+# gbm
+#gbm_iphoneDFBigCOR <- train(iphonesentiment ~., data = trainData_iphoneDFBigCOR, method = "gbm",
+#                trControl = fitControl)
+```
+
+Compare Accuracy on Prediction Results:
+
+```{r}
+#c5
+prediction_c5_iphoneDFBigCOR <- predict(c5_iphoneDFBigCOR, testData_iphoneDFBigCOR)
+postResample(prediction_c5_iphoneDFBigCOR, testData_iphoneDFBigCOR$iphonesentiment)
+#randomforest
+prediction_rf_iphoneDFBigCOR  <- predict(rf_iphoneDFBigCOR, testData_iphoneDFBigCOR)
+postResample(prediction_rf_iphoneDFBigCOR, testData_iphoneDFBigCOR$iphonesentiment)
+#svm
+prediction_svm_iphoneDFBigCOR  <- predict(svm_iphoneDFBigCOR, testData_iphoneDFBigCOR)
+postResample(prediction_svm_iphoneDFBigCOR, testData_iphoneDFBigCOR$iphonesentiment)
+# kknn
+prediction_kknn_iphoneDFBigCOR  <- predict(kknn_iphoneDFBigCOR, testData_iphoneDFBigCOR)
+postResample(prediction_kknn_iphoneDFBigCOR, testData_iphoneDFBigCOR$iphonesentiment)
+
+```
+
+```{r}
+modelData_iphoneDFBigCOR <- resamples(list(C50 = c5_iphoneDFBigCOR, randomForest = rf_iphoneDFBigCOR, svMLinear = svm_iphoneDFBigCOR,kknn = kknn_iphoneDFBigCOR))
+```
+
+```{r}
+summary(modelData_iphoneDFBigCOR)
+```

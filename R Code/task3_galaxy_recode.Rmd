@@ -1,0 +1,69 @@
+---
+title: "task4_galaxy_recode"
+output: html_notebook
+---
+# data
+```{r}
+samsung <- read.csv("galaxy_smallmatrix_labeled_9d.csv")
+```
+
+
+
+```{r}
+# create a new dataset that will be used for recoding sentiment
+samsung_RC <- samsung
+# recode sentiment to combine factor levels 0 & 1 and 4 & 5
+samsung_RC$galaxysentiment <- recode(samsung_RC$galaxysentiment, '0' = 1, '1' = 1, '2' = 2, '3' = 3, '4' = 4, '5' = 4) 
+# inspect results
+summary(samsung_RC)
+str(samsung_RC)
+# make galaxysentiment a factor
+samsung_RC$galaxysentiment <- as.factor(samsung_RC$galaxysentiment)
+```
+
+## samsung_RC
+
+```{r}
+# convert variable types, categorical
+#samsung_RC$galaxysentiment <- as.factor(samsung_RC$galaxysentiment)
+```
+
+```{r}
+# create 10-fold cross validation fitcontrol
+fitControl <- trainControl(method = "cv", number = 10)
+```
+
+
+
+
+Train and Test Set: 
+```{r}
+# Create Train and Test Set for samsung_RC
+# create 75% sample of row indices
+in_training <-createDataPartition(samsung_RC$galaxysentiment, p = .7, list = FALSE)
+# create 75% sample of data and save it to trainData
+trainData_samsung_RC <- samsung_RC[in_training, ]
+ # create 25% sample of data and save it to test_data
+testData_samsung_RC <- samsung_RC[-in_training, ]
+# verify split percentages
+nrow(trainData_samsung_RC) / nrow(samsung_RC)
+```
+
+```{r}
+#c5
+c5_samsung_RC <- train(galaxysentiment ~., data = trainData_samsung_RC, method = "C5.0",trControl = fitControl)
+```
+
+Compare Accuracy on Prediction Results:
+
+```{r}
+#c5
+prediction_c5_samsung_RC <- predict(c5_samsung_RC, testData_samsung_RC)
+postResample(prediction_c5_samsung_RC, testData_samsung_RC$galaxysentiment)
+```
+
+
+```{r}
+summary(c5_samsung_RC)
+```
+

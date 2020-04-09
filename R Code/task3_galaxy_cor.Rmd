@@ -1,0 +1,139 @@
+---
+title: "task3_galaxy_cor"
+output: html_notebook
+---
+
+```{r}
+samsung <- read.csv("galaxy_smallmatrix_labeled_9d.csv")
+
+```
+
+
+# Correlation Matrix
+
+
+```{r}
+# correlation matrix
+corr_matrix <- cor(samsung)
+corr_plot <- corrplot(as.matrix(corr_matrix))
+corr_plot
+```
+
+
+# Remove highly correlatedvariables
+```{r}
+# returns correlation  greater than .9
+corr_df <- correlate(samsung, diagonal = NA) %>% stretch()
+# Examine variables with correlation above .9
+corr_df_filtered <- corr_df %>% filter(r > .9)
+```
+
+Which variables will I keep? I copied corr_df_big_filtered into a spreadsheet and removed all duplicates.
+
+"iphone","htcphone","ios","nokiacampos","nokiacamneg","nokiacamunc","samsungdispos","sonydispos","nokiadispos","htcdispos","samsungdisneg","sonydisneg","nokiadisneg","samsungdisunc","nokiadisunc","nokiaperpos","samsungperneg","nokiaperneg","samsungperunc","nokiaperunc","iosperpos","googleperpos","iosperneg",
+
+```{r}
+#columns to remove
+
+corr_to_remove <- c("iphone","htcphone","ios","nokiacampos","nokiacamneg","nokiacamunc","samsungdispos","sonydispos","nokiadispos","htcdispos","samsungdisneg","sonydisneg","nokiadisneg","samsungdisunc","nokiadisunc","nokiaperpos","samsungperneg","nokiaperneg","samsungperunc","nokiaperunc","iosperpos","googleperpos","iosperneg")
+
+```
+
+
+```{r}
+samsungCOR <- samsung[ , -which(names(samsung) %in% corr_to_remove)]
+```
+
+
+```{r}
+names(samsungCOR)
+```
+
+
+
+# Train Model
+
+## Train and Test Set
+
+```{r}
+# convert variable types, categorical
+samsungCOR$galaxysentiment <- as.factor(samsungCOR$galaxysentiment)
+```
+
+Train and Test Set: 
+```{r}
+# Create Train and Test Set for samsungCOR
+# create 75% sample of row indices
+in_training <-createDataPartition(samsungCOR$galaxysentiment, p = .7, list = FALSE)
+# create 75% sample of data and save it to trainData
+trainData_samsungCOR <- samsungCOR[in_training, ]
+ # create 25% sample of data and save it to test_data
+testData_samsungCOR <- samsungCOR[-in_training, ]
+# verify split percentages
+nrow(trainData_samsungCOR) / nrow(samsungCOR)
+```
+
+
+# Models
+```{r}
+#c5
+c5_samsungCOR <- train(galaxysentiment ~., data = trainData_samsungCOR, method = "C5.0",
+                trControl = fitControl)
+```
+
+
+```{r}
+# randomforest
+rf_samsungCOR <- train(galaxysentiment ~., data = trainData_samsungCOR, method = "rf",
+                trControl = fitControl)
+```
+
+```{r}
+## svm performed worst in out-of-box model test
+# svm   (kernlab)
+#svm_samsungCOR <- train(galaxysentiment ~., data = trainData_samsungCOR, method = "svmLinear",
+#                trControl = fitControl)
+```
+
+
+```{r}
+# kknn
+kknn_samsungCOR <- train(galaxysentiment ~., data = trainData_samsungCOR, method = "kknn",
+                trControl = fitControl)
+```
+
+```{r}
+# gbm
+#gbm_samsungCOR <- train(galaxysentiment ~., data = trainData_samsungCOR, method = "gbm",
+#                trControl = fitControl)
+```
+
+
+# Model Summaries
+Compare Accuracy on Prediction Results:
+
+```{r}
+#c5
+prediction_c5_samsungCOR <- predict(c5_samsungCOR, testData_samsungCOR)
+postResample(prediction_c5_samsungCOR, testData_samsungCOR$galaxysentiment)
+#randomforest
+prediction_rf_samsungCOR  <- predict(rf_samsungCOR, testData_samsungCOR)
+postResample(prediction_rf_samsungCOR, testData_samsungCOR$galaxysentiment)
+#svm
+#prediction_svm_samsungCOR  <- predict(svm_samsungCOR, testData_samsungCOR)
+#postResample(prediction_svm_samsungCOR, testData_samsungCOR$galaxysentiment)
+# kknn
+prediction_kknn_samsungCOR  <- predict(kknn_samsungCOR, testData_samsungCOR)
+postResample(prediction_kknn_samsungCOR, testData_samsungCOR$galaxysentiment)
+
+```
+
+```{r}
+modelData_samsungCOR <- resamples(list(C50 = c5_samsungCOR, randomForest = rf_samsungCOR, 
+                                       #svMLinear = svm_samsungCOR,
+                                       kknn = kknn_samsungCOR))
+```
+
+```{r}
+summary(modelData_samsungCOR)
+```

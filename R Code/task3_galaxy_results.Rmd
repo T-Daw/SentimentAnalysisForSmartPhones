@@ -1,0 +1,19 @@
+---
+title: "Applying Model _Galaxy"
+output: html_notebook
+---
+
+```{r}
+galaxyLargeMatrix <- read.csv("LargeMatrix_Galaxy.csv")
+```
+
+```{r}
+#use c5.0 model with dependent variable recoding
+#c5_iphone_smallMatrix_RC
+
+prediction_galaxyLargeMatrix <-  predict(c5_samsung_RC,galaxyLargeMatrix)
+```
+
+```{r}
+summary(prediction_galaxyLargeMatrix)
+```

@@ -1,0 +1,146 @@
+---
+title: "task3_galaxy_rfe"
+output: html_notebook
+---
+
+# data
+```{r}
+samsung <- read.csv("galaxy_smallmatrix_labeled_9d.csv")
+```
+
+
+#rfe
+
+```{r}
+# Let's sample the data before using RFE
+samsung_Sample <- samsung[sample(1:nrow(samsung), 1000, replace=FALSE),]
+
+# Set up rfeControl with randomforest, repeated cross validation and no updates
+ctrl <- rfeControl(functions = rfFuncs, 
+                   method = "repeatedcv",
+                   repeats = 5,
+                   verbose = FALSE)
+
+# Use rfe and omit the response variable (attribute 11 galaxysentiment) 
+rfeResults <- rfe(samsung_Sample[,1:10], 
+                  samsung_Sample$galaxysentiment, 
+                  sizes=(1:10), 
+                  rfeControl=ctrl)
+
+# Get results
+rfeResults
+
+# Plot results
+plot(rfeResults, type=c("g", "o"))
+```
+
+# create data with rfe features
+```{r}
+# create new data set with rfe recommended features
+samsung_RFE <- samsung[,predictors(rfeResults)]
+
+# add the dependent variable to iphoneRFE
+samsung_RFE$galaxysentiment <- samsung$galaxysentiment
+
+# review outcome
+str(samsung_RFE)
+```
+# convert variable types
+
+
+```{r}
+# convert variable types, categorical
+samsung_RFE$galaxysentiment <- as.factor(samsung_RFE$galaxysentiment)
+```
+
+# Train and Test Set
+
+```{r}
+
+# create 10-fold cross validation fitcontrol
+fitControl <- trainControl(method = "cv", number = 10)
+```
+
+Train and Test Set: 
+```{r}
+# Create Train and Test Set for iphoneDFBig
+# create 75% sample of row indices
+in_training <-createDataPartition(samsung_RFE$galaxysentiment, p = .7, list = FALSE)
+# create 75% sample of data and save it to trainData
+trainData_samsung_RFE <- samsung_RFE[in_training, ]
+ # create 25% sample of data and save it to test_data
+testData_samsung_RFE <- samsung_RFE[-in_training, ]
+# verify split percentages
+nrow(trainData_samsung_RFE) / nrow(samsung_RFE)
+```
+
+
+
+# Train Models
+```{r}
+#c5
+c5_samsung_RFE <- train(galaxysentiment ~., data = trainData_samsung_RFE, method = "C5.0",
+                trControl = fitControl)
+```
+
+
+```{r}
+# randomforest
+rf_samsung_RFE <- train(galaxysentiment ~., data = trainData_samsung_RFE, method = "rf",
+                trControl = fitControl)
+```
+
+
+We won't try the following models because in the main dataset, the dataset with correlated variables removed, and nearzerovariance variables, removed, these models did not do very well. 
+```{r}
+# svm   (kernlab)
+#svm_samsung_RFE <- train(galaxysentiment ~., data = trainData_samsung_RFE, method = "svmLinear",
+#               trControl = fitControl)
+```
+
+
+```{r}
+# kknn
+kknn_samsung_RFE <- train(galaxysentiment ~., data = trainData_samsung_RFE, method = "kknn",
+               trControl = fitControl)
+```
+
+```{r}
+# gbm
+#gbm_samsung_RFE <- train(galaxysentiment ~., data = trainData_samsung_RFE, method = "gbm",
+#                trControl = fitControl)
+```
+
+# ModelSummary
+
+Compare Accuracy on Prediction Results:
+
+```{r}
+#c5
+prediction_c5_samsung_RFE <- predict(c5_samsung_RFE, testData_samsung_RFE)
+postResample(prediction_c5_samsung_RFE, testData_samsung_RFE$galaxysentiment)
+#randomforest
+prediction_rf_samsung_RFE  <- predict(rf_samsung_RFE, testData_samsung_RFE)
+postResample(prediction_rf_samsung_RFE, testData_samsung_RFE$galaxysentiment)
+# kknn
+prediction_kknn_samsung_RFE  <- predict(kknn_samsung_RFE, testData_samsung_RFE)
+postResample(prediction_kknn_samsung_RFE, testData_samsung_RFE$galaxysentiment)
+```
+
+```{r}
+#svm
+#prediction_svm_samsung_RFE  <- predict(svm_samsung_RFE, testData_samsung_RFE)
+#postResample(prediction_svm_samsung_RFE, testData_samsung_RFE$galaxysentiment)
+
+
+```
+
+```{r}
+modelData_samsung_RFE <- resamples(list(C50 = c5_samsung_RFE, randomForest = rf_samsung_RFE, kknn = kknn_samsung_RFE))
+                                                   
+#svMLinear = svm_samsung_RFE,kknn = kknn_samsung_RFE))
+```
+
+```{r}
+summary(modelData_samsung_RFE)
+```

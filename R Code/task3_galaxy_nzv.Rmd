@@ -1,0 +1,123 @@
+---
+title: "task3_galaxy_nzv"
+output: html_notebook
+---
+
+
+```{r}
+samsung <- read.csv("galaxy_smallmatrix_labeled_9d.csv")
+```
+
+# Near Zero Variance Variables
+
+
+# nzv
+```{r}
+#nearZeroVar() with saveMetrics = TRUE returns an object containing a table including: frequency ratio, percentage unique, zero variance and near zero variance 
+
+nzvMetrics <- nearZeroVar(samsung, saveMetrics = TRUE)
+nzvMetrics
+```
+
+
+```{r}
+# returns column 2, iphonecamunc, same as nvzMetrics
+# nearZeroVar() with saveMetrics = FALSE returns an vector 
+nzv <- nearZeroVar(samsung, saveMetrics = FALSE) 
+nzv
+```
+
+
+# Remove Near Zero Variance Variables
+
+```{r}
+# create a new data set and remove near zero variance features
+samsungNZV <- samsung[,-nzv]
+str(samsungNZV)
+```
+
+# Train Model
+
+## Train and Test Set
+
+```{r}
+# convert variable types, categorical
+samsungNZV$galaxysentiment <- as.factor(samsungNZV$galaxysentiment)
+```
+
+Train and Test Set: 
+```{r}
+# Create Train and Test Set for samsungNZV
+# create 75% sample of row indices
+in_training <-createDataPartition(samsungNZV$galaxysentiment, p = .7, list = FALSE)
+# create 75% sample of data and save it to trainData
+trainData_samsungNZV <- samsungNZV[in_training, ]
+ # create 25% sample of data and save it to test_data
+testData_samsungNZV <- samsungNZV[-in_training, ]
+# verify split percentages
+nrow(trainData_samsungNZV) / nrow(samsungNZV)
+```
+
+
+# Models
+```{r}
+#c5
+c5_samsungNZV <- train(galaxysentiment ~., data = trainData_samsungNZV, method = "C5.0",
+                trControl = fitControl)
+```
+
+
+```{r}
+# randomforest
+rf_samsungNZV <- train(galaxysentiment ~., data = trainData_samsungNZV, method = "rf",
+                trControl = fitControl)
+```
+
+```{r}
+# svm   (kernlab)
+#svm_samsungNZV <- train(galaxysentiment ~., data = trainData_samsungNZV, method = "svmLinear",
+#                trControl = fitControl)
+```
+
+
+```{r}
+# kknn
+kknn_samsungNZV <- train(galaxysentiment ~., data = trainData_samsungNZV, method = "kknn",
+                trControl = fitControl)
+```
+
+```{r}
+# gbm
+#gbm_samsungNZV <- train(galaxysentiment ~., data = trainData_samsungNZV, method = "gbm",
+#                trControl = fitControl)
+```
+
+
+# Model Summaries
+Compare Accuracy on Prediction Results:
+
+```{r}
+#c5
+prediction_c5_samsungNZV <- predict(c5_samsungNZV, testData_samsungNZV)
+postResample(prediction_c5_samsungNZV, testData_samsungNZV$galaxysentiment)
+#randomforest
+prediction_rf_samsungNZV  <- predict(rf_samsungNZV, testData_samsungNZV)
+postResample(prediction_rf_samsungNZV, testData_samsungNZV$galaxysentiment)
+#svm
+#prediction_svm_samsungNZV  <- predict(svm_samsungNZV, testData_samsungNZV)
+#postResample(prediction_svm_samsungNZV, testData_samsungNZV$galaxysentiment)
+# kknn
+prediction_kknn_samsungNZV  <- predict(kknn_samsungNZV, testData_samsungNZV)
+postResample(prediction_kknn_samsungNZV, testData_samsungNZV$galaxysentiment)
+
+```
+
+```{r}
+modelData_samsungNZV <- resamples(list(C50 = c5_samsungNZV, randomForest = rf_samsungNZV, 
+                                       #svMLinear = svm_samsungNZV,
+                                       kknn = kknn_samsungNZV))
+```
+
+```{r}
+summary(modelData_samsungNZV)
+```

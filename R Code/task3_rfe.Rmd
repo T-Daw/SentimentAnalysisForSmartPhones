@@ -1,0 +1,137 @@
+---
+title: "task3_rfe"
+output: html_notebook
+---
+
+#rfe
+
+```{r}
+# Let's sample the data before using RFE
+iphone_smallMatrix_Sample <- iphone_smallMatrix[sample(1:nrow(iphone_smallMatrix), 1000, replace=FALSE),]
+
+# Set up rfeControl with randomforest, repeated cross validation and no updates
+ctrl <- rfeControl(functions = rfFuncs, 
+                   method = "repeatedcv",
+                   repeats = 5,
+                   verbose = FALSE)
+
+# Use rfe and omit the response variable (attribute 11 iphonesentiment) 
+rfeResults <- rfe(iphone_smallMatrix_Sample[,1:10], 
+                  iphone_smallMatrix_Sample$iphonesentiment, 
+                  sizes=(1:10), 
+                  rfeControl=ctrl)
+
+# Get results
+rfeResults
+
+# Plot results
+plot(rfeResults, type=c("g", "o"))
+```
+
+
+```{r}
+# create new data set with rfe recommended features
+iphone_smallMatrix_RFE <- iphone_smallMatrix[,predictors(rfeResults)]
+
+# add the dependent variable to iphoneRFE
+iphone_smallMatrix_RFE$iphonesentiment <- iphone_smallMatrix$iphonesentiment
+
+# review outcome
+str(iphone_smallMatrix_RFE)
+```
+
+
+# Model Building
+
+```{r}
+
+# create 10-fold cross validation fitcontrol
+fitControl <- trainControl(method = "cv", number = 10)
+```
+ 
+
+# Model of dataframe without highly correlated variables
+
+
+```{r}
+# convert variable types, categorical
+iphone_smallMatrix_RFE$iphonesentiment <- as.factor(iphone_smallMatrix_RFE$iphonesentiment)
+```
+
+Train and Test Set: 
+```{r}
+# Create Train and Test Set for iphoneDFBig
+# create 75% sample of row indices
+in_training <-createDataPartition(iphone_smallMatrix_RFE$iphonesentiment, p = .7, list = FALSE)
+# create 75% sample of data and save it to trainData
+trainData_iphone_smallMatrix_RFE <- iphone_smallMatrix_RFE[in_training, ]
+ # create 25% sample of data and save it to test_data
+testData_iphone_smallMatrix_RFE <- iphone_smallMatrix_RFE[-in_training, ]
+# verify split percentages
+nrow(trainData_iphone_smallMatrix_RFE) / nrow(iphone_smallMatrix_RFE)
+```
+
+```{r}
+#c5
+c5_iphone_smallMatrix_RFE <- train(iphonesentiment ~., data = trainData_iphone_smallMatrix_RFE, method = "C5.0",
+                trControl = fitControl)
+```
+
+
+```{r}
+# randomforest
+rf_iphone_smallMatrix_RFE <- train(iphonesentiment ~., data = trainData_iphone_smallMatrix_RFE, method = "rf",
+                trControl = fitControl)
+```
+
+
+We won't try the following models because in the main dataset, the dataset with correlated variables removed, and nearzerovariance variables, removed, these models did not do very well. 
+```{r}
+# svm   (kernlab)
+svm_iphone_smallMatrix_RFE <- train(iphonesentiment ~., data = trainData_iphone_smallMatrix_RFE, method = "svmLinear",
+                trControl = fitControl)
+```
+
+
+```{r}
+# kknn
+kknn_iphone_smallMatrix_RFE <- train(iphonesentiment ~., data = trainData_iphone_smallMatrix_RFE, method = "kknn",
+                trControl = fitControl)
+```
+
+```{r}
+# gbm
+#gbm_iphone_smallMatrix_RFE <- train(iphonesentiment ~., data = trainData_iphone_smallMatrix_RFE, method = "gbm",
+#                trControl = fitControl)
+```
+
+Compare Accuracy on Prediction Results:
+
+```{r}
+#c5
+prediction_c5_iphone_smallMatrix_RFE <- predict(c5_iphone_smallMatrix_RFE, testData_iphone_smallMatrix_RFE)
+postResample(prediction_c5_iphone_smallMatrix_RFE, testData_iphone_smallMatrix_RFE$iphonesentiment)
+#randomforest
+prediction_rf_iphone_smallMatrix_RFE  <- predict(rf_iphone_smallMatrix_RFE, testData_iphone_smallMatrix_RFE)
+postResample(prediction_rf_iphone_smallMatrix_RFE, testData_iphone_smallMatrix_RFE$iphonesentiment)
+```
+
+```{r}
+#svm
+prediction_svm_iphone_smallMatrix_RFE  <- predict(svm_iphone_smallMatrix_RFE, testData_iphone_smallMatrix_RFE)
+postResample(prediction_svm_iphone_smallMatrix_RFE, testData_iphone_smallMatrix_RFE$iphonesentiment)
+# kknn
+prediction_kknn_iphone_smallMatrix_RFE  <- predict(kknn_iphone_smallMatrix_RFE, testData_iphone_smallMatrix_RFE)
+postResample(prediction_kknn_iphone_smallMatrix_RFE, testData_iphone_smallMatrix_RFE$iphonesentiment)
+
+```
+
+```{r}
+modelData_iphone_smallMatrix_RFE <- resamples(list(C50 = c5_iphone_smallMatrix_RFE, randomForest = rf_iphone_smallMatrix_RFE))
+                                                   
+#svMLinear = svm_iphone_smallMatrix_RFE,kknn = kknn_iphone_smallMatrix_RFE))
+```
+
+```{r}
+summary(modelData_iphone_smallMatrix_RFE)
+```

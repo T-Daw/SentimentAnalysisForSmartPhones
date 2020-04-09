@@ -1,0 +1,73 @@
+---
+title: "PCA"
+output: html_notebook
+---
+```{r}
+# convert variable types, categorical
+samsungDF$galaxysentiment <- as.factor(samsungDF$galaxysentiment)
+```
+
+
+
+```{r}
+iphone_smallMatrix_PCA  <- iphoneDFBig
+
+```
+
+Train and Test Set: 
+```{r}
+# Create Train and Test Set for iphoneDFBig
+# create 75% sample of row indices
+in_training <-createDataPartition(iphoneDFBig$iphonesentiment, p = .7, list = FALSE)
+# create 75% sample of data and save it to trainData
+trainData_iphoneDFBig <- iphoneDFBig[in_training, ]
+ # create 25% sample of data and save it to test_data
+testData_iphoneDFBig <- iphoneDFBig[-in_training, ]
+# verify split percentages
+nrow(trainData_iphoneDFBig) / nrow(iphoneDFBig)
+```
+
+```{r}
+# data = training and testing from iphoneDF (no feature selection) 
+# create object containing centered, scaled PCA components from training set
+# excluded the dependent variable and set threshold to .95
+preprocessParams <- preProcess(trainData_iphoneDFBig[,-59], method=c("center", "scale", "pca"), thresh = 0.95)
+print(preprocessParams)
+```
+
+
+```{r}
+# use predict to apply pca parameters, create training, exclude dependant
+train.pca <- predict(preprocessParams, trainData_iphoneDFBig[,-59])
+
+# add the dependent to training
+train.pca$iphonesentiment <- trainData_iphoneDFBig$iphonesentiment
+
+# use predict to apply pca parameters, create testing, exclude dependant
+test.pca <- predict(preprocessParams, testData_iphoneDFBig[,-59])
+
+# add the dependent to training
+test.pca$iphonesentiment <- testData_iphoneDFBig$iphonesentiment
+
+# inspect results
+str(train.pca)
+str(test.pca)
+```
+
+```{r}
+#c5
+c5_iphone_smallMatrix_PCA <- train(iphonesentiment ~., data = train.pca, method = "C5.0",trControl = fitControl)
+```
+
+Compare Accuracy on Prediction Results:
+
+```{r}
+#c5
+prediction_c5_iphone_smallMatrix_PCA <- predict(c5_iphone_smallMatrix_PCA, test.pca)
+postResample(prediction_c5_iphone_smallMatrix_PCA, test.pca$iphonesentiment)
+```
+
+
+```{r}
+summary(c5_iphone_smallMatrix_PCA)
+```

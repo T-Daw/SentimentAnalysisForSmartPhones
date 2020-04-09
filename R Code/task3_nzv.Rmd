@@ -1,0 +1,130 @@
+---
+title: "task3_nzv"
+output: html_notebook
+---
+
+# nzv
+```{r}
+#nearZeroVar() with saveMetrics = TRUE returns an object containing a table including: frequency ratio, percentage unique, zero variance and near zero variance 
+
+nzvMetrics <- nearZeroVar(iphone_smallMatrix, saveMetrics = TRUE)
+nzvMetrics
+```
+
+
+```{r}
+# returns column 2, iphonecamunc, same as nvzMetrics
+# nearZeroVar() with saveMetrics = FALSE returns an vector 
+nzv <- nearZeroVar(iphone_smallMatrix, saveMetrics = FALSE) 
+nzv
+```
+
+
+```{r}
+# create a new data set and remove near zero variance features
+iphoneDFBigNZV <- iphone_smallMatrix[,-nzv]
+str(iphoneDFBigNZV)
+```
+
+
+# Model Building
+
+```{r}
+
+# create 10-fold cross validation fitcontrol
+fitControl <- trainControl(method = "cv", number = 10)
+```
+ 
+
+# Model of dataframe without highly correlated variables
+
+
+```{r}
+# convert variable types, categorical
+iphoneDFBigNZV$iphonesentiment <- as.factor(iphoneDFBigNZV$iphonesentiment)
+```
+
+Train and Test Set: 
+```{r}
+# Create Train and Test Set for iphoneDFBig
+# create 75% sample of row indices
+in_training <-createDataPartition(iphoneDFBigNZV$iphonesentiment, p = .7, list = FALSE)
+# create 75% sample of data and save it to trainData
+trainData_iphoneDFBigNZV <- iphoneDFBigNZV[in_training, ]
+ # create 25% sample of data and save it to test_data
+testData_iphoneDFBigNZV <- iphoneDFBigNZV[-in_training, ]
+# verify split percentages
+nrow(trainData_iphoneDFBigNZV) / nrow(iphoneDFBigNZV)
+```
+
+```{r}
+#c5
+c5_iphoneDFBigNZV <- train(iphonesentiment ~., data = trainData_iphoneDFBigNZV, method = "C5.0",
+                trControl = fitControl)
+```
+
+
+```{r}
+# randomforest
+rf_iphoneDFBigNZV <- train(iphonesentiment ~., data = trainData_iphoneDFBigNZV, method = "rf",
+                trControl = fitControl)
+```
+
+
+We will run just c5 and random forest, since those two did the best on the dataset by itself as well as on the dataset with highly correlated variables removed. 
+
+
+```{r}
+# svm   (kernlab)
+#svm_iphoneDFBigNZV <- train(iphonesentiment ~., data = trainData_iphoneDFBigNZV, method = "svmLinear",
+#                trControl = fitControl)
+```
+
+
+```{r}
+# kknn
+#kknn_iphoneDFBigNZV <- train(iphonesentiment ~., data = trainData_iphoneDFBigNZV, method = "kknn",
+#                trControl = fitControl)
+```
+
+```{r}
+# gbm
+#gbm_iphoneDFBigNZV <- train(iphonesentiment ~., data = trainData_iphoneDFBigNZV, method = "gbm",
+#                trControl = fitControl)
+```
+
+Compare Accuracy on Prediction Results:
+
+```{r}
+#c5
+prediction_c5_iphoneDFBigNZV <- predict(c5_iphoneDFBigNZV, testData_iphoneDFBigNZV)
+postResample(prediction_c5_iphoneDFBigNZV, testData_iphoneDFBigNZV$iphonesentiment)
+#randomforest
+prediction_rf_iphoneDFBigNZV  <- predict(rf_iphoneDFBigNZV, testData_iphoneDFBigNZV)
+postResample(prediction_rf_iphoneDFBigNZV, testData_iphoneDFBigNZV$iphonesentiment)
+```
+
+
+```{r}
+
+#svm
+#prediction_svm_iphoneDFBigNZV  <- predict(svm_iphoneDFBigNZV, testData_iphoneDFBigNZV)
+#postResample(prediction_svm_iphoneDFBigNZV, testData_iphoneDFBigNZV$iphonesentiment)
+# kknn
+#prediction_kknn_iphoneDFBigNZV  <- predict(kknn_iphoneDFBigNZV, testData_iphoneDFBigNZV)
+#postResample(prediction_kknn_iphoneDFBigNZV, testData_iphoneDFBigNZV$iphonesentiment)
+
+```
+
+```{r}
+modelData_iphoneDFBigNZV <- resamples(list(C50 = c5_iphoneDFBigNZV, randomForest = rf_iphoneDFBigNZV))
+```
+
+
+```{r}
+#, svMLinear = svm_iphoneDFBigNZV,kknn = kknn_iphoneDFBigNZV
+```
+
+```{r}
+summary(modelData_iphoneDFBigNZV)
+```

@@ -1,0 +1,65 @@
+---
+title: "recode"
+output: html_notebook
+---
+
+
+
+```{r}
+# create a new dataset that will be used for recoding sentiment
+iphone_smallMatrix_RC <- iphone_smallMatrix
+# recode sentiment to combine factor levels 0 & 1 and 4 & 5
+iphone_smallMatrix_RC$iphonesentiment <- recode(iphone_smallMatrix_RC$iphonesentiment, '0' = 1, '1' = 1, '2' = 2, '3' = 3, '4' = 4, '5' = 4) 
+# inspect results
+summary(iphone_smallMatrix_RC)
+str(iphone_smallMatrix_RC)
+# make iphonesentiment a factor
+iphone_smallMatrix_RC$iphonesentiment <- as.factor(iphone_smallMatrix_RC$iphonesentiment)
+```
+
+## iphone_smallMatrix_RC
+
+```{r}
+# convert variable types, categorical
+#iphone_smallMatrix_RCCOR$iphonesentiment <- as.factor(iphone_smallMatrix_RCCOR$iphonesentiment)
+```
+
+
+```{r}
+
+# create 10-fold cross validation fitcontrol
+fitControl <- trainControl(method = "cv", number = 10)
+```
+
+
+Train and Test Set: 
+```{r}
+# Create Train and Test Set for iphone_smallMatrix_RC
+# create 75% sample of row indices
+in_training <-createDataPartition(iphone_smallMatrix_RC$iphonesentiment, p = .7, list = FALSE)
+# create 75% sample of data and save it to trainData
+trainData_iphone_smallMatrix_RC <- iphone_smallMatrix_RC[in_training, ]
+ # create 25% sample of data and save it to test_data
+testData_iphone_smallMatrix_RC <- iphone_smallMatrix_RC[-in_training, ]
+# verify split percentages
+nrow(trainData_iphone_smallMatrix_RC) / nrow(iphone_smallMatrix_RC)
+```
+
+```{r}
+#c5
+c5_iphone_smallMatrix_RC <- train(iphonesentiment ~., data = trainData_iphone_smallMatrix_RC, method = "C5.0",trControl = fitControl)
+```
+
+Compare Accuracy on Prediction Results:
+
+```{r}
+#c5
+prediction_c5_iphone_smallMatrix_RC <- predict(c5_iphone_smallMatrix_RC, testData_iphone_smallMatrix_RC)
+postResample(prediction_c5_iphone_smallMatrix_RC, testData_iphone_smallMatrix_RC$iphonesentiment)
+```
+
+
+```{r}
+summary(c5_iphone_smallMatrix_RC)
+```
+

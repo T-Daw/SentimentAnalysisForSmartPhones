@@ -1,0 +1,366 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+# Required
+install.packages("doParallel")
+library(doParallel)
+
+# Find how many cores are on your machine
+detectCores() # Result = Typically 4 to 6
+
+# Create Cluster with desired number of cores. Don't use them all! Your computer is running other processes. 
+cl <- makeCluster(2)
+
+# Register Cluster
+registerDoParallel(cl)
+
+# Confirm how many cores are now "assigned" to R and RStudio
+getDoParWorkers() # Result 2 
+```
+
+
+```{r}
+# create reproducable results from random sampling
+set.seed(234)
+```
+
+```{r}
+# Stop Cluster. After performing your tasks, stop your cluster. 
+stopCluster(cl)
+```
+
+```{r}
+install.packages("caret")
+install.packages("plotly")
+install.packages("dplyr")
+install.packages("kknn")
+install.packages("corrplot")
+install.packages("corrr")
+```
+
+```{r}
+library(caret)
+library(plotly)
+library(corrplot)
+library(corrr)
+library(dplyr)
+```
+
+
+```{r}
+options(max.print=1000000)
+options(scipen=999)
+```
+
+
+```{r}
+samsungDF <- read.csv("galaxy_smallmatrix_labeled_9d.csv")
+```
+
+```{r}
+# variables
+names(samsungDF)
+```
+
+```{r}
+#summary
+str(samsungDF)
+```
+
+```{r}
+# no missing values
+sum(is.na(samsungDF))
+
+```
+
+```{r}
+# There are no empty columns
+colSums(samsungDF)
+```
+
+```{r}
+# visualize distribution of iphone and samsung sentiments
+plot_ly(samsungDF, x= ~samsungDF$galaxysentiment, type='histogram')
+```
+
+Notes:
+0: very negative
+1: negative
+2: somewhat negative
+3: somewhat positive
+4: positive
+5: very positive
+
+
+
+
+```{r}
+# correlation matrix
+corr_matrix <- cor(samsungDF)
+corr_plot <- corrplot(as.matrix(corr_matrix))
+corr_plot
+```
+
+
+```{r}
+# returns correlation  greater than .9
+corr_df <- correlate(samsungDF, diagonal = NA) %>% stretch()
+# Examine variables with correlation above .9
+corr_df_filtered <- corr_df %>% filter(r > .9)
+```
+
+Which variables will I keep? I copied corr_df_big_filtered into a spreadsheet and removed all duplicates.
+
+"iphone","htcphone","ios","nokiacampos","nokiacamneg","nokiacamunc","samsungdispos","sonydispos","nokiadispos","htcdispos","samsungdisneg","sonydisneg","nokiadisneg","samsungdisunc","nokiadisunc","nokiaperpos","samsungperneg","nokiaperneg","samsungperunc","nokiaperunc","iosperpos","googleperpos","iosperneg",
+
+```{r}
+#columns to remove
+
+corr_to_remove <- c("iphone","htcphone","ios","nokiacampos","nokiacamneg","nokiacamunc","samsungdispos","sonydispos","nokiadispos","htcdispos","samsungdisneg","sonydisneg","nokiadisneg","samsungdisunc","nokiadisunc","nokiaperpos","samsungperneg","nokiaperneg","samsungperunc","nokiaperunc","iosperpos","googleperpos","iosperneg")
+
+```
+
+
+```{r}
+samsungCOR <- samsungDF[ , -which(names(samsungDF) %in% corr_to_remove)]
+```
+
+
+```{r}
+names(samsungCOR)
+```
+
+
+# nzv
+
+# Recursive Feature Elimination
+
+```{r}
+# Let's sample the data before using RFE
+set.seed(123)
+iphoneSample <- samsungDF[sample(1:nrow(samsungDF), 1000, replace=FALSE),]
+
+# Set up rfeControl with randomforest, repeated cross validation and no updates
+ctrl <- rfeControl(functions = rfFuncs, 
+                   method = "repeatedcv",
+                   repeats = 5,
+                   verbose = FALSE)
+
+# Use rfe and omit the response variable (attribute 59 galaxysentiment) 
+rfeResultsBIG <- rfe(iphoneSample[,1:58], 
+                  iphoneSample$galaxysentiment, 
+                  sizes=(1:58), 
+                  rfeControl=ctrl)
+
+# Get results
+rfeResultsBIG
+
+# Plot results
+plot(rfeResultsBIG, type=c("g", "o"))
+```
+
+BIG RFE
+```{r}
+# create new data set with rfe recommended features
+samsungDFRFE <- samsungDF[,predictors(rfeResultsBIG)]
+
+# add the dependent variable to iphoneRFE
+samsungDFRFE$galaxysentiment <- samsungDF$galaxysentiment
+
+# review outcome
+str(samsungDFRFE)
+```
+
+
+My_Data_Sets
+
+
+iPhoneBig
+ - samsungDF <- samsungDF
+ - samsungDFCOR <- 
+ - samsungDFNZV <- 
+ - samsungDFRFE <- samsungDFRFE
+ - samsungDFRecoded <- optional tasks
+ - samsungDFPCA <- optional tasks
+
+
+# Model Building
+
+```{r}
+
+# create 10-fold cross validation fitcontrol
+fitControl <- trainControl(method = "cv", number = 10)
+```
+
+
+## samsungDF
+
+
+```{r}
+# convert variable types, categorical
+samsungDF$galaxysentiment <- as.factor(samsungDF$galaxysentiment)
+```
+
+
+
+Train and Test Set: 
+```{r}
+# Create Train and Test Set for samsungDF
+# create 75% sample of row indices
+in_training <-createDataPartition(samsungDF$galaxysentiment, p = .7, list = FALSE)
+# create 75% sample of data and save it to trainData
+trainData_samsungDF <- samsungDF[in_training, ]
+ # create 25% sample of data and save it to test_data
+testData_samsungDF <- samsungDF[-in_training, ]
+# verify split percentages
+nrow(trainData_samsungDF) / nrow(samsungDF)
+```
+
+```{r}
+#c5
+c5_samsungDF <- train(galaxysentiment ~., data = trainData_samsungDF, method = "C5.0",
+                trControl = fitControl)
+```
+
+
+```{r}
+# randomforest
+rf_samsungDF <- train(galaxysentiment ~., data = trainData_samsungDF, method = "rf",
+                trControl = fitControl)
+```
+
+```{r}
+# svm   (kernlab)
+svm_samsungDF <- train(galaxysentiment ~., data = trainData_samsungDF, method = "svmLinear",
+                trControl = fitControl)
+```
+
+
+```{r}
+# kknn
+kknn_samsungDF <- train(galaxysentiment ~., data = trainData_samsungDF, method = "kknn",
+                trControl = fitControl)
+```
+
+```{r}
+# gbm
+#gbm_samsungDF <- train(galaxysentiment ~., data = trainData_samsungDF, method = "gbm",
+#                trControl = fitControl)
+```
+
+Compare Accuracy on Prediction Results:
+
+```{r}
+#c5
+prediction_c5_samsungDF <- predict(c5_samsungDF, testData_samsungDF)
+postResample(prediction_c5_samsungDF, testData_samsungDF$galaxysentiment)
+#randomforest
+prediction_rf_samsungDF  <- predict(rf_samsungDF, testData_samsungDF)
+postResample(prediction_rf_samsungDF, testData_samsungDF$galaxysentiment)
+#svm
+prediction_svm_samsungDF  <- predict(svm_samsungDF, testData_samsungDF)
+postResample(prediction_svm_samsungDF, testData_samsungDF$galaxysentiment)
+# kknn
+prediction_kknn_samsungDF  <- predict(kknn_samsungDF, testData_samsungDF)
+postResample(prediction_kknn_samsungDF, testData_samsungDF$galaxysentiment)
+# gbm
+#prediction_gbm_samsungDF  <- predict(gbm_samsungDF, testData_samsungDF)
+#Model summary for comparisons
+```
+
+```{r}
+modelData_samsungDF <- resamples(list(C50 = c5_samsungDF, randomForest = rf_samsungDF, svMLinear = svm_samsungDF,kknn = kknn_samsungDF))
+```
+
+```{r}
+summary(modelData_samsungDF)
+```
+
+
+Train and Test Set: 
+```{r}
+# Create Train and Test Set for samsungDF
+# create 75% sample of row indices
+in_training <-createDataPartition(samsungDF$galaxysentiment, p = .7, list = FALSE)
+# create 75% sample of data and save it to trainData
+trainData_samsungDF <- samsungDF[in_training, ]
+ # create 25% sample of data and save it to test_data
+testData_samsungDF <- samsungDF[-in_training, ]
+# verify split percentages
+nrow(trainData_samsungDF) / nrow(samsungDF)
+```
+
+```{r}
+#c5
+c5_samsungDF <- train(galaxysentiment ~., data = trainData_samsungDF, method = "C5.0",
+                trControl = fitControl)
+```
+
+
+```{r}
+# randomforest
+rf_samsungDF <- train(galaxysentiment ~., data = trainData_samsungDF, method = "rf",
+                trControl = fitControl)
+```
+
+```{r}
+# svm   (kernlab)
+svm_samsungDF <- train(galaxysentiment ~., data = trainData_samsungDF, method = "svmLinear",
+                trControl = fitControl)
+```
+
+
+```{r}
+# kknn
+kknn_samsungDF <- train(galaxysentiment ~., data = trainData_samsungDF, method = "kknn",
+                trControl = fitControl)
+```
+
+```{r}
+# gbm
+#gbm_samsungDF <- train(galaxysentiment ~., data = trainData_samsungDF, method = "gbm",
+#                trControl = fitControl)
+```
+
+Compare Accuracy on Prediction Results:
+
+```{r}
+#c5
+prediction_c5_samsungDF <- predict(c5_samsungDF, testData_samsungDF)
+postResample(prediction_c5_samsungDF, testData_samsungDF$galaxysentiment)
+#randomforest
+prediction_rf_samsungDF  <- predict(rf_samsungDF, testData_samsungDF)
+postResample(prediction_rf_samsungDF, testData_samsungDF$galaxysentiment)
+#svm
+prediction_svm_samsungDF  <- predict(svm_samsungDF, testData_samsungDF)
+postResample(prediction_svm_samsungDF, testData_samsungDF$galaxysentiment)
+# kknn
+prediction_kknn_samsungDF  <- predict(kknn_samsungDF, testData_samsungDF)
+postResample(prediction_kknn_samsungDF, testData_samsungDF$galaxysentiment)
+
+```
+
+```{r}
+modelData_samsungDF <- resamples(list(C50 = c5_samsungDF, randomForest = rf_samsungDF, svMLinear = svm_samsungDF,kknn = kknn_samsungDF))
+```
+
+```{r}
+summary(modelData_samsungDF)
+```
+
+
+## Choose final model: Evaluating model efficiency
+```{r}
+# Create a confusion matrix from random forest predictions 
+cmC5 <- confusionMatrix(prediction_c5_samsungDF, testData_samsungDF$galaxysentiment) 
+cmC5
+cmRM <- confusionMatrix(prediction_rf_samsungDF, testData_samsungDF$galaxysentiment) 
+cmRM
+```
+
+
+
